@@ -112,7 +112,7 @@ bool SkLayerRasterizer::onRasterize(const SkPath& path, const SkMatrix& matrix,
 
     if (SkMask::kComputeBoundsAndRenderImage_CreateMode == mode) {
         mask->fFormat   = SkMask::kA8_Format;
-        mask->fRowBytes = mask->fBounds.width();
+        mask->fRowBytes = (mask->fBounds.width() + (4-1)) & -4;
         size_t size = mask->computeImageSize();
         if (0 == size) {
             return false;   // too big to allocate, abort

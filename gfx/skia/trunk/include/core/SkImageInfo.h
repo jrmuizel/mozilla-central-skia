@@ -190,7 +190,7 @@ struct SkImageInfo {
     }
 
     uint64_t minRowBytes64() const {
-        return sk_64_mul(fWidth, this->bytesPerPixel());
+        return (((sk_64_mul(fWidth, this->bytesPerPixel())) + (4-1)) & -4);
     }
 
     size_t minRowBytes() const {

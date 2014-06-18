@@ -30,7 +30,7 @@ typedef int32_t             SkFixed;
 
 #define SkFixedToFloat(x)   ((x) * 1.5258789e-5f)
 #if 1
-    #define SkFloatToFixed(x)   ((SkFixed)((x) * SK_Fixed1))
+    #define SkFloatToFixed(x)   ((SkFixed)((x) * SK_Fixed1 + 0.5f))
 #else
     // pins over/under flows to max/min int32 (slower than just a cast)
     static inline SkFixed SkFloatToFixed(float x) {

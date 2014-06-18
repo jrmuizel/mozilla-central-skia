@@ -36,8 +36,12 @@ static void D32_A8_Opaque(void* SK_RESTRICT dst, size_t dstRB,
         int w = width;
         do {
             unsigned aa = *mask++;
-            *device = SkAlphaMulQ(pmc, SkAlpha255To256(aa)) + SkAlphaMulQ(*device, SkAlpha255To256(255 - aa));
-            device += 1;
+#ifdef ACCURATE_BLENDING
+            *device = SkAlphaMulQ_Accurate(pmc, aa) + SkAlphaMulQ_Accurate(*device, 255 - aa);
+#else
+			*device = SkAlphaMulQ(pmc, SkAlpha255To256(aa)) + SkAlphaMulQ(*device, SkAlpha255To256(255 - aa));
+#endif
+			device += 1;
         } while (--w != 0);
         device = (uint32_t*)((char*)device + dstRB);
         mask += maskRB;
@@ -56,7 +60,11 @@ static void D32_A8_Black(void* SK_RESTRICT dst, size_t dstRB,
         int w = width;
         do {
             unsigned aa = *mask++;
-            *device = (aa << SK_A32_SHIFT) + SkAlphaMulQ(*device, SkAlpha255To256(255 - aa));
+#ifdef ACCURATE_BLENDING
+            *device = (aa << SK_A32_SHIFT) + SkAlphaMulQ_Accurate(*device, 255 - aa);
+#else
+			*device = (aa << SK_A32_SHIFT) + SkAlphaMulQ(*device, SkAlpha255To256(255 - aa));
+#endif
             device += 1;
         } while (--w != 0);
         device = (uint32_t*)((char*)device + dstRB);

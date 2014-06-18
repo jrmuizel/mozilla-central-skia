@@ -262,9 +262,13 @@ void SkA8_Shader_Blitter::blitH(int x, int y, int width) {
         } else {
             for (int i = width - 1; i >= 0; --i) {
                 unsigned    srcA = SkGetPackedA32(span[i]);
+#ifdef ACCURATE_BLENDING
+                device[i] = SkToU8(srcA + SkAlphaMul_Accurate(device[i], 255 - srcA));
+#else
                 unsigned    scale = 256 - SkAlpha255To256(srcA);
 
                 device[i] = SkToU8(srcA + SkAlphaMul(device[i], scale));
+#endif
             }
         }
     }
