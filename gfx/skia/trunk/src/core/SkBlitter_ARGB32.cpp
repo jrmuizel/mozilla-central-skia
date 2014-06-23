@@ -44,12 +44,19 @@ SkARGB32_Blitter::SkARGB32_Blitter(const SkBitmap& device, const SkPaint& paint)
         : INHERITED(device) {
     SkColor color = paint.getColor();
     fColor = color;
-
+#ifndef ACCURATE_BLENDING
     fSrcA = SkColorGetA(color);
     unsigned scale = SkAlpha255To256(fSrcA);
     fSrcR = SkAlphaMul(SkColorGetR(color), scale);
     fSrcG = SkAlphaMul(SkColorGetG(color), scale);
     fSrcB = SkAlphaMul(SkColorGetB(color), scale);
+#else
+	fSrcA = SkColorGetA(color);
+    unsigned scale = fSrcA;
+    fSrcR = SkAlphaMul_Accurate(SkColorGetR(color), scale);
+    fSrcG = SkAlphaMul_Accurate(SkColorGetG(color), scale);
+    fSrcB = SkAlphaMul_Accurate(SkColorGetB(color), scale);
+#endif
 
     fPMColor = SkPackARGB32(fSrcA, fSrcR, fSrcG, fSrcB);
     fColor32Proc = SkBlitRow::ColorProcFactory();
@@ -97,7 +104,11 @@ void SkARGB32_Blitter::blitAntiH(int x, int y, const SkAlpha antialias[],
             if ((opaqueMask & aa) == 255) {
                 sk_memset32(device, color, count);
             } else {
+#ifndef ACCURATE_BLENDING
                 uint32_t sc = SkAlphaMulQ(color, SkAlpha255To256(aa));
+#else
+				uint32_t sc = SkAlphaMulQ_Accurate(color, aa);
+#endif
                 fColor32Proc(device, device, count, sc);
             }
         }
@@ -192,13 +203,21 @@ void SkARGB32_Blitter::blitV(int x, int y, int height, SkAlpha alpha) {
     uint32_t  color = fPMColor;
 
     if (alpha != 255) {
+#ifndef ACCURATE_BLENDING
         color = SkAlphaMulQ(color, SkAlpha255To256(alpha));
+#else
+		color = SkAlphaMulQ_Accurate(color, alpha);
+#endif
     }
 
     unsigned dst_scale = 255 - SkGetPackedA32(color);
     size_t rowBytes = fDevice.rowBytes();
     while (--height >= 0) {
+#ifndef ACCURATE_BLENDING
         device[0] = color + SkAlphaMulQ(device[0], dst_scale);
+#else
+		device[0] = color + SkAlphaMulQ_Accurate(device[0], dst_scale);
+#endif
         device = (uint32_t*)((char*)device + rowBytes);
     }
 }
@@ -247,11 +266,19 @@ void SkARGB32_Black_Blitter::blitAntiH(int x, int y, const SkAlpha antialias[],
                 sk_memset32(device, black, count);
             } else {
                 SkPMColor src = aa << SK_A32_SHIFT;
+#ifndef ACCURATE_BLENDING
                 unsigned dst_scale = 256 - aa;
+#else
+				unsigned dst_scale = 255 - aa;
+#endif
                 int n = count;
                 do {
                     --n;
+#ifndef ACCURATE_BLENDING
                     device[n] = src + SkAlphaMulQ(device[n], dst_scale);
+#else
+                    device[n] = src + SkAlphaMulQ_Accurate(device[n], dst_scale);
+#endif
                 } while (n > 0);
             }
         }

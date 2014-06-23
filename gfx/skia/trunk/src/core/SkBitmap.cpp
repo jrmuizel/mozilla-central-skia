@@ -856,9 +856,15 @@ void SkBitmap::internalErase(const SkIRect& area,
 
     // make rgb premultiplied
     if (255 != a) {
+#ifndef ACCURATE_BLENDING
         r = SkAlphaMul(r, a);
         g = SkAlphaMul(g, a);
         b = SkAlphaMul(b, a);
+#else
+		r = SkAlphaMul_Accurate(r, a);
+        g = SkAlphaMul_Accurate(g, a);
+        b = SkAlphaMul_Accurate(b, a);
+#endif
     }
 
     switch (this->colorType()) {

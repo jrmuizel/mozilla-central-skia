@@ -252,7 +252,11 @@ bool SkColorShader::setContext(const SkBitmap& device, const SkPaint& paint,
         fColor = paint.getColor();
         a = SkColorGetA(fColor);
     } else {
+#ifndef ACCURATE_BLENDING
         a = SkAlphaMul(SkColorGetA(fColor), SkAlpha255To256(paint.getAlpha()));
+#else
+		a = SkAlphaMul_Accurate(SkColorGetA(fColor), paint.getAlpha());
+#endif
     }
 
     unsigned r = SkColorGetR(fColor);

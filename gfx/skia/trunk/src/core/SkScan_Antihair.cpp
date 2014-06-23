@@ -695,14 +695,22 @@ static void do_scanline(FDot8 L, int top, FDot8 R, U8CPU alpha,
     SkASSERT(L < R);
 
     if ((L >> 8) == ((R - 1) >> 8)) {  // 1x1 pixel
+#ifndef ACCURATE_BLENDING
         blitter->blitV(L >> 8, top, 1, SkAlphaMul(alpha, R - L));
+#else
+		blitter->blitV(L >> 8, top, 1, SkAlphaMul_Accurate(alpha, R - L));
+#endif
         return;
     }
 
     int left = L >> 8;
 
     if (L & 0xFF) {
+#ifndef ACCURATE_BLENDING
         blitter->blitV(left, top, 1, SkAlphaMul(alpha, 256 - (L & 0xFF)));
+#else
+		blitter->blitV(left, top, 1, SkAlphaMul_Accurate(alpha, 255 - (L & 0XFF)));
+#endif
         left += 1;
     }
 
@@ -712,7 +720,11 @@ static void do_scanline(FDot8 L, int top, FDot8 R, U8CPU alpha,
         call_hline_blitter(blitter, left, top, width, alpha);
     }
     if (R & 0xFF) {
+#ifndef ACCURATE_BLENDING
         blitter->blitV(rite, top, 1, SkAlphaMul(alpha, R & 0xFF));
+#else
+		blitter->blitV(rite, top, 1, SkAlphaMul_Accurate(alpha, R & 0xFF));
+#endif
     }
 }
 
@@ -729,7 +741,11 @@ static void antifilldot8(FDot8 L, FDot8 T, FDot8 R, FDot8 B, SkBlitter* blitter,
     }
 
     if (T & 0xFF) {
+#ifndef ACCURATE_BLENDING
         do_scanline(L, top, R, 256 - (T & 0xFF), blitter);
+#else
+		do_scanline(L, top, R, 255 - (T & 0xFF), blitter);
+#endif
         top += 1;
     }
 

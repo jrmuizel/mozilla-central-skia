@@ -31,6 +31,7 @@
 #define SK_LUM_COEFF_G SK_ITU_BT709_LUM_COEFF_G
 #define SK_LUM_COEFF_B SK_ITU_BT709_LUM_COEFF_B
 ///@}
+#define ACCURATE_BLENDING
 
 /** Computes the luminance from the given r, g, and b in accordance with
     SK_LUM_COEFF_X. For correct results, r, g, and b should be in linear space.
@@ -58,7 +59,10 @@ static inline unsigned SkAlpha255To256(U8CPU alpha) {
 /** Multiplify value by 0..256, and shift the result down 8
     (i.e. return (value * alpha256) >> 8)
  */
-#define SkAlphaMul(value, alpha256)     (SkMulS16(value, alpha256) >> 8)
+static inline int SkAlphaMul(int value, int alpha256)
+{
+  return SkMulS16(value, alpha256) >> 8;
+}
 #define SkAlphaMul_Accurate(value, alpha255)  SkMulDiv255Round(value, alpha255)
 
 //  The caller may want negative values, so keep all params signed (int)
@@ -257,6 +261,16 @@ static inline SkPMColor SkFourByteInterp256(SkPMColor src, SkPMColor dst,
     return SkPackARGB32(a, r, g, b);
 }
 
+static inline SkPMColor SkFourByteInterp255(SkPMColor src, SkPMColor dst,
+                                         unsigned scale) {
+    unsigned a = SkAlphaBlend255(SkGetPackedA32(src), SkGetPackedA32(dst), scale);
+    unsigned r = SkAlphaBlend255(SkGetPackedR32(src), SkGetPackedR32(dst), scale);
+    unsigned g = SkAlphaBlend255(SkGetPackedG32(src), SkGetPackedG32(dst), scale);
+    unsigned b = SkAlphaBlend255(SkGetPackedB32(src), SkGetPackedB32(dst), scale);
+
+    return SkPackARGB32(a, r, g, b);
+}
+
 /**
  * Abstract 4-byte interpolation, implemented on top of SkPMColor
  * utility functions. Third parameter controls blending of the first two:
@@ -265,8 +279,12 @@ static inline SkPMColor SkFourByteInterp256(SkPMColor src, SkPMColor dst,
  */
 static inline SkPMColor SkFourByteInterp(SkPMColor src, SkPMColor dst,
                                          U8CPU srcWeight) {
+#ifdef ACCURATE_BLENDING
+    return SkFourByteInterp255(src, dst, srcWeight);
+#else
     unsigned scale = SkAlpha255To256(srcWeight);
     return SkFourByteInterp256(src, dst, scale);
+#endif
 }
 
 /**
@@ -400,7 +418,7 @@ static inline uint32_t SkAlphaMulQ_Accurate(uint32_t c, unsigned scale) {
     return (rb & mask) | (ag & ~mask);
 }
 
-#define ACCURATE_BLENDING
+
 #ifdef ACCURATE_BLENDING
 static inline SkPMColor SkPMSrcOver(SkPMColor src, SkPMColor dst) {
     return src + SkAlphaMulQ_Accurate(dst, 255 - SkGetPackedA32(src));

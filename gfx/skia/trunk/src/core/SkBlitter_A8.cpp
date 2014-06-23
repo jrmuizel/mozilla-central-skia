@@ -38,12 +38,21 @@ void SkA8_Blitter::blitH(int x, int y, int width) {
     if (fSrcA == 255) {
         memset(device, 0xFF, width);
     } else {
+#ifndef ACCURATE_BLENDING
         unsigned scale = 256 - SkAlpha255To256(fSrcA);
         unsigned srcA = fSrcA;
 
         for (int i = 0; i < width; i++) {
             device[i] = SkToU8(srcA + SkAlphaMul(device[i], scale));
         }
+#else
+		unsigned scale = 255 - fSrcA;
+        unsigned srcA = fSrcA;
+
+        for (int i = 0; i < width; i++) {
+            device[i] = SkToU8(srcA + SkAlphaMul_Accurate(device[i], scale));
+        }
+#endif
     }
 }
 
@@ -67,12 +76,21 @@ void SkA8_Blitter::blitAntiH(int x, int y, const SkAlpha antialias[],
         if (aa == 255 && srcA == 255) {
             memset(device, 0xFF, count);
         } else {
+#ifndef ACCURATE_BLENDING
             unsigned sa = SkAlphaMul(srcA, SkAlpha255To256(aa));
             unsigned scale = 256 - sa;
 
             for (int i = 0; i < count; i++) {
                 device[i] = SkToU8(sa + SkAlphaMul(device[i], scale));
             }
+#else
+			unsigned sa = SkAlphaMul_Accurate(srcA, aa);
+            unsigned scale = 255 - sa;
+
+            for (int i = 0; i < count; i++) {
+                device[i] = SkToU8(sa + SkAlphaMul_Accurate(device[i], scale));
+            }
+#endif
         }
         runs += count;
         antialias += count;
@@ -159,12 +177,21 @@ void SkA8_Blitter::blitMask(const SkMask& mask, const SkIRect& clip) {
                     }
                     sa = srcA;
                 } else {
+#ifndef ACCURATE_BLENDING
                     sa = SkAlphaMul(srcA, SkAlpha255To256(aa));
+#else
+					sa = SkAlphaMul_Accurate(srcA, aa);
+#endif
                 }
             }
 
+#ifndef ACCURATE_BLENDING
             int scale = 256 - SkAlpha255To256(sa);
             device[i] = SkToU8(sa + SkAlphaMul(device[i], scale));
+#else
+            int scale = 255 - sa;
+            device[i] = SkToU8(sa + SkAlphaMul_Accurate(device[i], scale));
+#endif
         }
         device += fDevice.rowBytes();
         alpha += mask.fRowBytes;
@@ -178,7 +205,11 @@ void SkA8_Blitter::blitV(int x, int y, int height, SkAlpha alpha) {
         return;
     }
 
+#ifndef ACCURATE_BLENDING
     unsigned sa = SkAlphaMul(fSrcA, SkAlpha255To256(alpha));
+#else
+	unsigned sa = SkAlphaMul_Accurate(fSrcA, alpha);
+#endif
     uint8_t* device = fDevice.getAddr8(x, y);
     size_t   rowBytes = fDevice.rowBytes();
 
@@ -188,12 +219,21 @@ void SkA8_Blitter::blitV(int x, int y, int height, SkAlpha alpha) {
             device += rowBytes;
         }
     } else {
+#ifndef ACCURATE_BLENDING
         unsigned scale = 256 - SkAlpha255To256(sa);
 
         for (int i = 0; i < height; i++) {
             *device = SkToU8(sa + SkAlphaMul(*device, scale));
             device += rowBytes;
         }
+#else
+		unsigned scale = 255 - sa;
+
+        for (int i = 0; i < height; i++) {
+            *device = SkToU8(sa + SkAlphaMul_Accurate(*device, scale));
+            device += rowBytes;
+        }
+#endif
     }
 }
 
@@ -215,6 +255,7 @@ void SkA8_Blitter::blitRect(int x, int y, int width, int height) {
             device += fDevice.rowBytes();
         }
     } else {
+#ifndef ACCURATE_BLENDING
         unsigned scale = 256 - SkAlpha255To256(srcA);
 
         while (--height >= 0) {
@@ -223,6 +264,16 @@ void SkA8_Blitter::blitRect(int x, int y, int width, int height) {
             }
             device += fDevice.rowBytes();
         }
+#else
+		unsigned scale = 255 - srcA;
+
+        while (--height >= 0) {
+            for (int i = 0; i < width; i++) {
+                device[i] = SkToU8(srcA + SkAlphaMul_Accurate(device[i], scale));
+            }
+            device += fDevice.rowBytes();
+        }
+#endif
     }
 }
 
@@ -277,9 +328,15 @@ void SkA8_Shader_Blitter::blitH(int x, int y, int width) {
 static inline uint8_t aa_blend8(SkPMColor src, U8CPU da, int aa) {
     SkASSERT((unsigned)aa <= 255);
 
+#ifndef ACCURATE_BLENDING
     int src_scale = SkAlpha255To256(aa);
     int sa = SkGetPackedA32(src);
     int dst_scale = 256 - SkAlphaMul(sa, src_scale);
+#else
+	int src_scale = aa;
+    int sa = SkGetPackedA32(src);
+    int dst_scale = 256 - SkAlphaMul_Accurate(sa, src_scale);
+#endif
 
     return SkToU8((sa * src_scale + da * dst_scale) >> 8);
 }
