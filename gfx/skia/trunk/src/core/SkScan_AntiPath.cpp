@@ -465,8 +465,10 @@ static void add_aa_span(uint8_t* alpha, U8CPU startAlpha, int middleCount,
                         U8CPU stopAlpha, U8CPU maxValue) {
     SkASSERT(middleCount >= 0);
 
-    saturated_add(alpha, startAlpha);
-    alpha += 1;
+	if (startAlpha) {
+      saturated_add(alpha, startAlpha);
+      alpha += 1;
+	}
 
     if (middleCount >= MIN_COUNT_FOR_QUAD_LOOP) {
         // loop until we're quad-byte aligned
@@ -544,7 +546,10 @@ void MaskSuperBlitter::blitH(int x, int y, int width) {
         SkASSERT(row < fMask.fImage + kMAX_STORAGE + 1);
         add_aa_span(row, coverage_to_partial_alpha(fe - fb));
     } else {
-        fb = SCALE - fb;
+		if (fb == 0)
+			n += 1;
+		else
+            fb = SCALE - fb;
         SkASSERT(row >= fMask.fImage);
         SkASSERT(row + n + 1 < fMask.fImage + kMAX_STORAGE + 1);
         add_aa_span(row,  coverage_to_partial_alpha(fb),
