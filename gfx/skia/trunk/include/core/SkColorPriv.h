@@ -63,6 +63,12 @@ static inline int SkAlphaMul(int value, int alpha256)
 {
   return SkMulS16(value, alpha256) >> 8;
 }
+
+static inline int SkAlphaMul256(int value, int alpha256)
+{
+  return SkMulS16(value, alpha256) >> 8;
+}
+
 #define SkAlphaMul_Accurate(value, alpha255)  SkMulDiv255Round(value, alpha255)
 
 //  The caller may want negative values, so keep all params signed (int)
