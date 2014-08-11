@@ -338,7 +338,7 @@ public:
   OpaqueRenderer(const nsIntRegion& aUpdateRegion) :
     mUpdateRegion(aUpdateRegion) {}
   ~OpaqueRenderer() { End(); }
-  RefPtr<DrawTarget> Begin(LayerD3D9* aLayer);
+  already_AddRefed<gfxWindowsSurface> Begin(LayerD3D9* aLayer);
   void End();
   IDirect3DTexture9* GetTexture() { return mTmpTexture; }
 
@@ -349,7 +349,7 @@ private:
   nsRefPtr<gfxWindowsSurface> mD3D9ThebesSurface;
 };
 
-RefPtr<DrawTarget>
+already_AddRefed<gfxWindowsSurface>
 OpaqueRenderer::Begin(LayerD3D9* aLayer)
 {
   nsIntRect bounds = mUpdateRegion.GetBounds();
@@ -362,53 +362,29 @@ OpaqueRenderer::Begin(LayerD3D9* aLayer)
     aLayer->ReportFailure(NS_LITERAL_CSTRING("Failed to create temporary texture in system memory."), hr);
     return nullptr;
   }
-  BackendType backend = gfxPlatform::GetPlatform()->GetContentBackend();
-  if (backend == BackendType::CAIRO) {
-	  hr = mTmpTexture->GetSurfaceLevel(0, getter_AddRefs(mSurface));
-	  if (FAILED(hr)) {
-		// Uh-oh, bail.
-		NS_WARNING("Failed to get texture surface level.");
-		return nullptr;
-	  }
 
-	  nsRefPtr<gfxWindowsSurface> result = new gfxWindowsSurface(mSurface);
-	  if (!result || result->CairoStatus()) {
-		NS_WARNING("Failed to d3d9 cairo surface.");
-		return nullptr;
-	  }
-	  mD3D9ThebesSurface = result;
+  hr = mTmpTexture->GetSurfaceLevel(0, getter_AddRefs(mSurface));
 
-  
-	  return gfxPlatform::GetPlatform()->CreateDrawTargetForSurface(result,
-																	IntSize(bounds.width,
-																	bounds.height));
-  } else {
-	  mSurface = nullptr;
-	  D3DLOCKED_RECT r;
-	  hr = mTmpTexture->LockRect(0, &r, nullptr, 0);
-	  if (FAILED(hr)) {
-		// Uh-oh, bail.
-		NS_WARNING("Failed to lock the texture");
-		return nullptr;
-	  }
-  
-	  RefPtr<DrawTarget> dt = Factory::CreateDrawTargetForData(backend,
-									  (unsigned char *)r.pBits,
-								IntSize(bounds.width, bounds.height),
-								r.Pitch,
-								SurfaceFormat::B8G8R8X8);
-
-	  if (!dt) {
-		NS_WARNING("Failed to create DT for d3d9 surface.");
-		return nullptr;
-	  }
-	  return dt;
+  if (FAILED(hr)) {
+    // Uh-oh, bail.
+    NS_WARNING("Failed to get texture surface level.");
+    return nullptr;
   }
+
+  nsRefPtr<gfxWindowsSurface> result = new gfxWindowsSurface(mSurface);
+  if (!result || result->CairoStatus()) {
+    NS_WARNING("Failed to d3d9 cairo surface.");
+    return nullptr;
+  }
+  mD3D9ThebesSurface = result;
+
+  return result.forget();
 }
 
 void
 OpaqueRenderer::End()
 {
+  mSurface = nullptr;
   // gfxWindowsSurface returned from ::Begin() should be released before the
   // texture is used. This will assert that this is the case
 #if 1
@@ -420,27 +396,25 @@ OpaqueRenderer::End()
   }
 #endif
   mD3D9ThebesSurface = nullptr;
-  if (mTmpTexture && !mSurface)
-	  mTmpTexture->UnlockRect(0);
-  mSurface = nullptr;
+
 }
 class TransparentRenderer {
 public:
   TransparentRenderer(const nsIntRegion& aUpdateRegion) :
     mUpdateRegion(aUpdateRegion) {}
   ~TransparentRenderer() { End(); }
-  RefPtr<DrawTarget> Begin(LayerD3D9* aLayer, bool aSubpixelAA);
+  already_AddRefed<gfxImageSurface> Begin(LayerD3D9* aLayer);
   void End();
   IDirect3DTexture9* GetTexture() { return mTmpTexture; }
 
 private:
   const nsIntRegion& mUpdateRegion;
   nsRefPtr<IDirect3DTexture9> mTmpTexture;
-  RefPtr<DrawTarget> mDT;
+  nsRefPtr<gfxImageSurface> mD3D9ThebesSurface;
 };
 
-RefPtr<DrawTarget>
-TransparentRenderer::Begin(LayerD3D9* aLayer, bool aSubpixelAA)
+already_AddRefed<gfxImageSurface>
+TransparentRenderer::Begin(LayerD3D9* aLayer)
 {
   nsIntRect bounds = mUpdateRegion.GetBounds();
 
@@ -460,43 +434,48 @@ TransparentRenderer::Begin(LayerD3D9* aLayer, bool aSubpixelAA)
     NS_WARNING("Failed to lock the texture");
     return nullptr;
   }
-  
-  mDT = Factory::CreateDrawTargetForData(gfxPlatform::GetPlatform()->GetContentBackend(),
-	                              (unsigned char *)r.pBits,
-                            IntSize(bounds.width, bounds.height),
+  nsRefPtr<gfxImageSurface> result =
+        new gfxImageSurface((unsigned char *)r.pBits,
+                            bounds.Size(),
                             r.Pitch,
-                            SurfaceFormat::B8G8R8A8);
+                            gfxImageFormat::ARGB32);
 
-
-  if (!mDT) {
+  if (!result || result->CairoStatus()) {
     NS_WARNING("Failed to d3d9 cairo surface.");
     return nullptr;
   }
-  // If the contents of this layer don't require component alpha in the
-  // end of rendering, it's safe to enable Cleartype since all the Cleartype
-  // glyphs must be over (or under) opaque pixels.
-  mDT->SetPermitSubpixelAA(aSubpixelAA);
-  return mDT;
+  mD3D9ThebesSurface = result;
+
+  return result.forget();
 }
 
 void
 TransparentRenderer::End()
 {
+  // gfxImageSurface returned from ::Begin() should be released before the
+  // texture is used. This will assert that this is the case
+#if 1
+  if (mD3D9ThebesSurface) {
+    mD3D9ThebesSurface->AddRef();
+    nsrefcnt c = mD3D9ThebesSurface->Release();
+    if (c != 1)
+      NS_RUNTIMEABORT("Reference mD3D9ThebesSurface must be released by caller of Begin() before calling End()");
+  }
+#endif
+  mD3D9ThebesSurface = nullptr;
   if (mTmpTexture)
 	  mTmpTexture->UnlockRect(0);
 }
 
-
 static void
-FillSurface(DrawTarget* aDT, const nsIntRegion& aRegion,
+FillSurface(gfxASurface* aSurface, const nsIntRegion& aRegion,
             const nsIntPoint& aOffset, const gfxRGBA& aColor)
 {
   nsIntRegionRectIterator iter(aRegion);
   const nsIntRect* r;
   while ((r = iter.Next()) != nullptr) {
-    aDT->FillRect(Rect(r->x - aOffset.x, r->y - aOffset.y,
-                       r->width, r->height),
-                  ColorPattern(ToColor(aColor)));
+    nsIntRect rect = *r + aOffset;
+    gfxUtils::ClearThebesSurface(aSurface, &rect, aColor);
   }
 }
 
@@ -506,7 +485,7 @@ ThebesLayerD3D9::DrawRegion(nsIntRegion &aRegion, SurfaceMode aMode,
 {
   nsIntRect visibleRect = mVisibleRegion.GetBounds();
 
-  RefPtr<DrawTarget> dt;
+  nsRefPtr<gfxASurface> destinationSurface;
   nsIntRect bounds = aRegion.GetBounds();
   nsRefPtr<IDirect3DTexture9> tmpTexture;
   OpaqueRenderer opaqueRenderer(aRegion);
@@ -516,27 +495,36 @@ ThebesLayerD3D9::DrawRegion(nsIntRegion &aRegion, SurfaceMode aMode,
   switch (aMode)
   {
     case SurfaceMode::SURFACE_OPAQUE:
-      dt = opaqueRenderer.Begin(this);
+      destinationSurface = opaqueRenderer.Begin(this);
       break;
 
     case SurfaceMode::SURFACE_SINGLE_CHANNEL_ALPHA: {
-	  dt = transparentRenderer.Begin(this, !(mContentFlags & CONTENT_COMPONENT_ALPHA));
+	  destinationSurface = transparentRenderer.Begin(this);
+      // If the contents of this layer don't require component alpha in the
+      // end of rendering, it's safe to enable Cleartype since all the Cleartype
+      // glyphs must be over (or under) opaque pixels.
+      destinationSurface->SetSubpixelAntialiasingEnabled(!(mContentFlags & CONTENT_COMPONENT_ALPHA));
       break;
     }
 
     case SurfaceMode::SURFACE_COMPONENT_ALPHA: {
-      RefPtr<DrawTarget> onBlack = opaqueRenderer.Begin(this);
-      RefPtr<DrawTarget> onWhite = opaqueRendererOnWhite.Begin(this);
+      nsRefPtr<gfxWindowsSurface> onBlack = opaqueRenderer.Begin(this);
+      nsRefPtr<gfxWindowsSurface> onWhite = opaqueRendererOnWhite.Begin(this);
       if (onBlack && onWhite) {
         FillSurface(onBlack, aRegion, bounds.TopLeft(), gfxRGBA(0.0, 0.0, 0.0, 1.0));
         FillSurface(onWhite, aRegion, bounds.TopLeft(), gfxRGBA(1.0, 1.0, 1.0, 1.0));
-        dt = Factory::CreateDualDrawTarget(onBlack, onWhite);
+        gfxASurface* surfaces[2] = { onBlack.get(), onWhite.get() };
+        destinationSurface = new gfxTeeSurface(surfaces, ArrayLength(surfaces));
+        // Using this surface as a source will likely go horribly wrong, since
+        // only the onBlack surface will really be used, so alpha information will
+        // be incorrect.
+        destinationSurface->SetAllowUseAsSource(false);
       }
       break;
     }
   }
 
-  if (!dt)
+  if (!destinationSurface)
     return;
 
   MOZ_ASSERT(gfxPlatform::GetPlatform()->SupportsAzureContentForType(BackendType::CAIRO));
@@ -559,11 +547,10 @@ ThebesLayerD3D9::DrawRegion(nsIntRegion &aRegion, SurfaceMode aMode,
     nsRefPtr<gfxContext> ctx =
         update.mLayer->GetSink()->BeginUpdate(update.mUpdateRect + offset,
                                               update.mSequenceCounter);
-	RefPtr<SourceSurface> source = dt->Snapshot();
     if (ctx) {
-	  ctx->GetDrawTarget()->DrawSurface(source,
-		  Rect(offset.x, offset.y, bounds.x, bounds.y),
-		  Rect(0, 0, bounds.x, bounds.y));
+      ctx->Translate(gfxPoint(offset.x, offset.y));
+      ctx->SetSource(destinationSurface, gfxPoint(bounds.x, bounds.y));
+      ctx->Paint();
       update.mLayer->GetSink()->EndUpdate(ctx, update.mUpdateRect + offset);
     }
   }
@@ -577,7 +564,7 @@ ThebesLayerD3D9::DrawRegion(nsIntRegion &aRegion, SurfaceMode aMode,
   {
     case SurfaceMode::SURFACE_OPAQUE:
       // Must release reference to dest surface before ending drawing
-      dt = nullptr;
+      destinationSurface = nullptr;
       opaqueRenderer.End();
       srcTextures.AppendElement(opaqueRenderer.GetTexture());
       destTextures.AppendElement(mTexture);
@@ -585,7 +572,7 @@ ThebesLayerD3D9::DrawRegion(nsIntRegion &aRegion, SurfaceMode aMode,
 
     case SurfaceMode::SURFACE_SINGLE_CHANNEL_ALPHA:
 	  // Must release reference to dest surface before ending drawing
-      dt = nullptr;
+      destinationSurface = nullptr;
       transparentRenderer.End();
       srcTextures.AppendElement(transparentRenderer.GetTexture());
       destTextures.AppendElement(mTexture);
@@ -593,7 +580,7 @@ ThebesLayerD3D9::DrawRegion(nsIntRegion &aRegion, SurfaceMode aMode,
 
     case SurfaceMode::SURFACE_COMPONENT_ALPHA: {
       // Must release reference to dest surface before ending drawing
-      dt = nullptr;
+      destinationSurface = nullptr;
       opaqueRenderer.End();
       opaqueRendererOnWhite.End();
       srcTextures.AppendElement(opaqueRenderer.GetTexture());

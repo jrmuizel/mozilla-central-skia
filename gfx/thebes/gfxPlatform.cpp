@@ -566,7 +566,7 @@ gfxPlatform::~gfxPlatform()
 #endif
 #endif
 }
-
+#if 0
 bool
 gfxPlatform::PreferMemoryOverShmem() const {
   MOZ_ASSERT(!CompositorParent::IsInCompositorThread());
@@ -609,7 +609,7 @@ gfxPlatform::OptimizeImage(gfxImageSurface *aSurface,
 
     return optSurface.forget();
 }
-
+#endif
 cairo_user_data_key_t kDrawTarget;
 
 TemporaryRef<DrawTarget>
