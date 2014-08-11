@@ -362,32 +362,53 @@ OpaqueRenderer::Begin(LayerD3D9* aLayer)
     aLayer->ReportFailure(NS_LITERAL_CSTRING("Failed to create temporary texture in system memory."), hr);
     return nullptr;
   }
+  BackendType backend = gfxPlatform::GetPlatform()->GetContentBackend();
+  if (backend == BackendType::CAIRO) {
+	  hr = mTmpTexture->GetSurfaceLevel(0, getter_AddRefs(mSurface));
+	  if (FAILED(hr)) {
+		// Uh-oh, bail.
+		NS_WARNING("Failed to get texture surface level.");
+		return nullptr;
+	  }
 
-  hr = mTmpTexture->GetSurfaceLevel(0, getter_AddRefs(mSurface));
-
-  if (FAILED(hr)) {
-    // Uh-oh, bail.
-    NS_WARNING("Failed to get texture surface level.");
-    return nullptr;
-  }
-
-  nsRefPtr<gfxWindowsSurface> result = new gfxWindowsSurface(mSurface);
-  if (!result || result->CairoStatus()) {
-    NS_WARNING("Failed to d3d9 cairo surface.");
-    return nullptr;
-  }
-  mD3D9ThebesSurface = result;
+	  nsRefPtr<gfxWindowsSurface> result = new gfxWindowsSurface(mSurface);
+	  if (!result || result->CairoStatus()) {
+		NS_WARNING("Failed to d3d9 cairo surface.");
+		return nullptr;
+	  }
+	  mD3D9ThebesSurface = result;
 
   
-  return gfxPlatform::GetPlatform()->CreateDrawTargetForSurface(result,
-                                                                IntSize(bounds.width,
-                                                                bounds.height));
+	  return gfxPlatform::GetPlatform()->CreateDrawTargetForSurface(result,
+																	IntSize(bounds.width,
+																	bounds.height));
+  } else {
+	  mSurface = nullptr;
+	  D3DLOCKED_RECT r;
+	  hr = mTmpTexture->LockRect(0, &r, nullptr, 0);
+	  if (FAILED(hr)) {
+		// Uh-oh, bail.
+		NS_WARNING("Failed to lock the texture");
+		return nullptr;
+	  }
+  
+	  RefPtr<DrawTarget> dt = Factory::CreateDrawTargetForData(backend,
+									  (unsigned char *)r.pBits,
+								IntSize(bounds.width, bounds.height),
+								r.Pitch,
+								SurfaceFormat::B8G8R8X8);
+
+	  if (!dt) {
+		NS_WARNING("Failed to create DT for d3d9 surface.");
+		return nullptr;
+	  }
+	  return dt;
+  }
 }
 
 void
 OpaqueRenderer::End()
 {
-  mSurface = nullptr;
   // gfxWindowsSurface returned from ::Begin() should be released before the
   // texture is used. This will assert that this is the case
 #if 1
@@ -399,7 +420,9 @@ OpaqueRenderer::End()
   }
 #endif
   mD3D9ThebesSurface = nullptr;
-
+  if (mTmpTexture && !mSurface)
+	  mTmpTexture->UnlockRect(0);
+  mSurface = nullptr;
 }
 class TransparentRenderer {
 public:
@@ -413,7 +436,7 @@ public:
 private:
   const nsIntRegion& mUpdateRegion;
   nsRefPtr<IDirect3DTexture9> mTmpTexture;
-  nsRefPtr<gfxImageSurface> mD3D9ThebesSurface;
+  RefPtr<DrawTarget> mDT;
 };
 
 RefPtr<DrawTarget>
@@ -437,41 +460,28 @@ TransparentRenderer::Begin(LayerD3D9* aLayer, bool aSubpixelAA)
     NS_WARNING("Failed to lock the texture");
     return nullptr;
   }
-  nsRefPtr<gfxImageSurface> result =
-        new gfxImageSurface((unsigned char *)r.pBits,
-                            bounds.Size(),
+  
+  mDT = Factory::CreateDrawTargetForData(gfxPlatform::GetPlatform()->GetContentBackend(),
+	                              (unsigned char *)r.pBits,
+                            IntSize(bounds.width, bounds.height),
                             r.Pitch,
-                            gfxImageFormat::ARGB32);
+                            SurfaceFormat::B8G8R8A8);
 
-  if (!result || result->CairoStatus()) {
+
+  if (!mDT) {
     NS_WARNING("Failed to d3d9 cairo surface.");
     return nullptr;
   }
-  mD3D9ThebesSurface = result;
   // If the contents of this layer don't require component alpha in the
-      // end of rendering, it's safe to enable Cleartype since all the Cleartype
-      // glyphs must be over (or under) opaque pixels.
-  result->SetSubpixelAntialiasingEnabled(aSubpixelAA);
-      
-  return gfxPlatform::GetPlatform()->CreateDrawTargetForSurface(result,
-                                                                IntSize(bounds.width,
-                                                                bounds.height));
+  // end of rendering, it's safe to enable Cleartype since all the Cleartype
+  // glyphs must be over (or under) opaque pixels.
+  mDT->SetPermitSubpixelAA(aSubpixelAA);
+  return mDT;
 }
 
 void
 TransparentRenderer::End()
 {
-  // gfxImageSurface returned from ::Begin() should be released before the
-  // texture is used. This will assert that this is the case
-#if 1
-  if (mD3D9ThebesSurface) {
-    mD3D9ThebesSurface->AddRef();
-    nsrefcnt c = mD3D9ThebesSurface->Release();
-    if (c != 1)
-      NS_RUNTIMEABORT("Reference mD3D9ThebesSurface must be released by caller of Begin() before calling End()");
-  }
-#endif
-  mD3D9ThebesSurface = nullptr;
   if (mTmpTexture)
 	  mTmpTexture->UnlockRect(0);
 }

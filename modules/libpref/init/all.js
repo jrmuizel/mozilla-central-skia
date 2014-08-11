@@ -490,8 +490,10 @@ pref("gfx.font_rendering.opentype_svg.enabled", true);
 #ifdef XP_WIN
 // comma separated list of backends to use in order of preference
 // e.g., pref("gfx.canvas.azure.backends", "direct2d,skia,cairo");
-pref("gfx.canvas.azure.backends", "direct2d,skia,cairo");
-pref("gfx.content.azure.backends", "direct2d,cairo");
+pref("gfx.canvas.azure.backends", "skia,cairo");
+pref("gfx.content.azure.backends", "skia,cairo");
+//pref("gfx.canvas.azure.backends", "cairo");
+//pref("gfx.content.azure.backends", "cairo");
 #else
 #ifdef XP_MACOSX
 pref("gfx.content.azure.backends", "cg");
@@ -3811,7 +3813,7 @@ pref("gfx.direct2d.disabled", false);
 pref("gfx.direct2d.force-enabled", false);
 
 pref("layers.prefer-opengl", false);
-pref("layers.prefer-d3d9", false);
+pref("layers.prefer-d3d9", true);
 #endif
 
 // Force all possible layers to be always active layers

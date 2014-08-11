@@ -5,9 +5,9 @@
 function doDraw() {
   var ctx = document.getElementById('canvas').getContext('2d');
 
-  var radgrad = ctx.createRadialGradient(100,100,25,100,100,50);
-  radgrad.addColorStop(0, '#FF0000');
-  radgrad.addColorStop(1, '#0000FF');
+  var radgrad = ctx.createRadialGradient(100,100,0,100,100,100);
+  radgrad.addColorStop(0.25, '#FF0000');
+  radgrad.addColorStop(0.5, '#0000FF');
 
   ctx.fillStyle = radgrad;
   ctx.fillRect(0,0,300,300);

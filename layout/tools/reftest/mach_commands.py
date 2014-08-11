@@ -266,6 +266,8 @@ class ReftestRunner(MozbuildObject):
                 print("--debugger-args passed, but no debugger specified.")
                 return 1
 
+        extra_args.append('--timeout=1000000')
+        
         if parallel:
             extra_args.append('--run-tests-in-parallel')
 
