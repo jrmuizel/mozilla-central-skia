@@ -851,6 +851,9 @@ void SkDraw::drawRect(const SkRect& rect, const SkPaint& paint) const {
         // extra space for hairlines
         ir.inset(-1, -1);
     }
+    if (paint.getStyle() == SkPaint::kStroke_Style) {
+	ir.inset(-strokeSize.x(), -strokeSize.y());
+    }
     if (fRC->quickReject(ir)) {
         return;
     }
