@@ -522,9 +522,11 @@ DrawTargetSkia::FillGlyphs(ScaledFont *aFont,
     paint.mPaint.setHinting(SkPaint::kNormal_Hinting);
   }
 
+#if 0
   if (mFormat == SurfaceFormat::B8G8R8X8)
     paint.mPaint.setFlags(paint.mPaint.getFlags() | SkPaint::kLCDRenderText_Flag | SkPaint::kGenA8FromLCD_Flag);
   paint.mPaint.setFlags(paint.mPaint.getFlags() | SkPaint::kGenA8FromLCD_Flag);
+#endif
 
   std::vector<uint16_t> indices;
   std::vector<SkPoint> offsets;

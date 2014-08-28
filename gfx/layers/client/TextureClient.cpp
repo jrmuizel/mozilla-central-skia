@@ -289,11 +289,12 @@ TextureClient::CreateForDrawing(ISurfaceAllocator* aAllocator,
       texture = new CairoTextureClientD3D9(aFormat, aTextureFlags);
     }
   }
-
+#if 0
   if (!texture && aFormat == SurfaceFormat::B8G8R8X8 &&
       aAllocator->IsSameProcess()) {
     texture = new DIBTextureClient(aFormat, aTextureFlags);
   }
+#endif
 
 #endif
 
