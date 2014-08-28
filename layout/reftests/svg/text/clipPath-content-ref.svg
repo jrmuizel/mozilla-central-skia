@@ -9,10 +9,10 @@
       src: url(../../fonts/Ahem.ttf);
     }
   </style>
-  <g style="font: 12px Ahem; white-space: pre; fill: blue">
+  <g style="font: 32px Ahem; white-space: pre; fill: blue">
     <text x="20" y="100">one</text>
   </g>
-<!--  <g fill="none" stroke="black" stroke-width="4" shape-rendering="crispEdges">
+  <g fill="none" stroke="black" stroke-width="4" shape-rendering="crispEdges">
     <rect x="20" y="73" width="96" height="32"/>
-  </g>-->
+  </g>
 </svg>
